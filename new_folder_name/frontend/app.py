@@ -97,6 +97,9 @@ def set_background(image_file):
     )
 
 # ✅ FIXED BACKGROUND PATH
+from pathlib import Path
+BASE_DIR = Path(__file__).parent
+
 set_background(BASE_DIR / "wallpaper.png")
 
 # --------------------------------------------------
@@ -259,3 +262,4 @@ if st.session_state.page == "hour":
             results.append({"Hour": f"{h}:00", "Count": int(hour_model.predict(df)[0])})
 
         st.bar_chart(pd.DataFrame(results).set_index("Hour"))
+
