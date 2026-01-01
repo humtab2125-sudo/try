@@ -1,9 +1,14 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
 import base64
 import altair as alt
+from pathlib import Path
+
+# --------------------------------------------------
+# BASE DIRECTORY (VERY IMPORTANT FOR STREAMLIT CLOUD)
+# --------------------------------------------------
+BASE_DIR = Path(__file__).parent
 
 # --------------------------------------------------
 # PAGE SETUP
@@ -91,7 +96,8 @@ def set_background(image_file):
         unsafe_allow_html=True
     )
 
-set_background("wallpaper.png")
+# ✅ FIXED BACKGROUND PATH
+set_background(BASE_DIR / "wallpaper.png")
 
 # --------------------------------------------------
 # SESSION STATE
@@ -104,7 +110,7 @@ if "hour_results" not in st.session_state:
     st.session_state.hour_results = None
 
 # --------------------------------------------------
-# HERO SECTION (ONE-LINE TITLE)
+# HERO SECTION
 # --------------------------------------------------
 st.markdown(
     """
@@ -113,8 +119,6 @@ st.markdown(
         font-size:42px;
         font-weight:900;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
         background: linear-gradient(90deg,#020617,#2563eb,#1e40af);
         -webkit-background-clip:text;
         -webkit-text-fill-color:transparent;
@@ -126,7 +130,7 @@ st.markdown(
     </style>
 
     <div class="hero" style="text-align:center; margin:28px 0;">
-        <h1> Bike Rental Prediction System</h1>
+        <h1>Bike Rental Prediction System</h1>
         <p>Predict daily and hourly bike demand using machine learning</p>
     </div>
     """,
@@ -134,25 +138,18 @@ st.markdown(
 )
 
 # --------------------------------------------------
-# REDUCED BG IMAGE (CENTERED)
+# CENTER IMAGE (FIXED PATH)
 # --------------------------------------------------
-# col1, col2, col3 = st.columns([1, 2, 1])
-# with col2:
-#     st.image("bg.png", width=250)
-
-import base64
-
 col1, col2, col3 = st.columns([1, 2, 1])
-
 with col2:
     st.markdown(
-        """
-        <div style="display:flex; justify-content:center; margin-left:12px;">
-            <img src="data:image/png;base64,{}" width="250">
+        f"""
+        <div style="display:flex; justify-content:center;">
+            <img src="data:image/png;base64,{
+                base64.b64encode(open(BASE_DIR / "bg.png", "rb").read()).decode()
+            }" width="250">
         </div>
-        """.format(
-            base64.b64encode(open("bg.png", "rb").read()).decode()
-        ),
+        """,
         unsafe_allow_html=True
     )
 
@@ -160,7 +157,6 @@ with col2:
 # NAVIGATION
 # --------------------------------------------------
 col1, col2 = st.columns(2)
-
 with col1:
     if st.button("📅 Day-wise Prediction", use_container_width=True):
         st.session_state.page = "day"
@@ -171,14 +167,13 @@ with col2:
         st.session_state.page = "hour"
         st.session_state.day_results = None
 
-st.markdown("<hr style='border:1px solid #cbd5f5; margin:32px 0;'>",
-            unsafe_allow_html=True)
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # --------------------------------------------------
-# LOAD MODELS
+# LOAD MODELS (FIXED PATHS)
 # --------------------------------------------------
-day_model = joblib.load("day_model.pkl")
-hour_model = joblib.load("hour_model.pkl")
+day_model = joblib.load(BASE_DIR / "day_model.pkl")
+hour_model = joblib.load(BASE_DIR / "hour_model.pkl")
 
 # --------------------------------------------------
 # MAPS
@@ -199,161 +194,68 @@ months = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December"
 ]
-
 DAY_LIST = list(weekday_map.keys())
-
-def rotate_days(start_day):
-    idx = DAY_LIST.index(start_day)
-    return DAY_LIST[idx:] + DAY_LIST[:idx]
 
 # ==================================================
 # DAY PAGE
 # ==================================================
 if st.session_state.page == "day":
-
     st.header("📅 Daily Bike Rental Prediction")
-
     season = season_map[st.selectbox("Season", season_map)]
     month = months.index(st.selectbox("Month", months)) + 1
     holiday = binary_map[st.selectbox("Holiday", binary_map)]
-    start_day = st.selectbox("Starting Day", weekday_map)
-    weekday_num = weekday_map[start_day]
+    weekday_num = weekday_map[st.selectbox("Starting Day", weekday_map)]
     workingday = binary_map[st.selectbox("Working Day", binary_map)]
     weather = weather_map[st.selectbox("Weather Condition", weather_map)]
 
-    temp = st.slider("Temperature (0–1)", 0.0, 1.0)
-    atemp = st.slider("Feels-like Temperature (0–1)", 0.0, 1.0)
-    hum = st.slider("Humidity (0–1)", 0.0, 1.0)
-    wind = st.slider("Windspeed (0–1)", 0.0, 1.0)
+    temp = st.slider("Temperature", 0.0, 1.0)
+    atemp = st.slider("Feels-like Temperature", 0.0, 1.0)
+    hum = st.slider("Humidity", 0.0, 1.0)
+    wind = st.slider("Windspeed", 0.0, 1.0)
 
     if st.button("Predict Weekly Demand"):
         results = []
         for i in range(7):
             d = (weekday_num + i) % 7
             df = pd.DataFrame([{
-                "season": season,
-                "mnth": month,
-                "holiday": holiday,
-                "weekday": d,
-                "workingday": workingday,
-                "weathersit": weather,
-                "temp": temp,
-                "atemp": atemp,
-                "hum": hum,
-                "windspeed": wind
+                "season": season, "mnth": month, "holiday": holiday,
+                "weekday": d, "workingday": workingday,
+                "weathersit": weather, "temp": temp,
+                "atemp": atemp, "hum": hum, "windspeed": wind
             }])
-            pred = int(day_model.predict(df)[0])
-            results.append({"Day": DAY_LIST[d], "Count": pred})
+            results.append({"Day": DAY_LIST[d], "Count": int(day_model.predict(df)[0])})
 
-        st.session_state.day_results = results
-
-    if st.session_state.day_results:
-        dfw = pd.DataFrame(st.session_state.day_results)
-        ordered_days = rotate_days(start_day)
-
-        st.altair_chart(
-            (
-                alt.Chart(dfw)
-                .mark_bar(
-                    color="#2563eb",
-                    cornerRadiusTopLeft=6,
-                    cornerRadiusTopRight=6,
-                    tooltip=None
-                )
-                .encode(
-                    x=alt.X("Day:N", sort=ordered_days),
-                    y=alt.Y("Count:Q", scale=alt.Scale(domain=[0, dfw["Count"].max()*1.25]))
-                )
-                +
-                alt.Chart(dfw)
-                .mark_text(
-                    dy=-8,
-                    color="#E4E6F0",
-                    fontSize=13,
-                    fontWeight="bold"
-                )
-                .encode(
-                    x=alt.X("Day:N", sort=ordered_days),
-                    y="Count:Q",
-                    text="Count:Q"
-                )
-            )
-            .properties(height=380),
-            use_container_width=True
-        )
+        st.bar_chart(pd.DataFrame(results).set_index("Day"))
 
 # ==================================================
 # HOURLY PAGE
 # ==================================================
 if st.session_state.page == "hour":
-
     st.header("⏰ Hourly Bike Rental Prediction")
-
     season = season_map[st.selectbox("Season", season_map)]
     month = months.index(st.selectbox("Month", months)) + 1
-    hour = st.slider("Hour (0–23)", 0, 23)
+    hour = st.slider("Hour", 0, 23)
     holiday = binary_map[st.selectbox("Holiday", binary_map)]
     weekday = weekday_map[st.selectbox("Weekday", weekday_map)]
     workingday = binary_map[st.selectbox("Working Day", binary_map)]
     weather = weather_map[st.selectbox("Weather Condition", weather_map)]
 
-    temp = st.slider("Temperature (0–1)", 0.0, 1.0)
-    atemp = st.slider("Feels-like Temperature (0–1)", 0.0, 1.0)
-    hum = st.slider("Humidity (0–1)", 0.0, 1.0)
-    wind = st.slider("Windspeed (0–1)", 0.0, 1.0)
+    temp = st.slider("Temperature", 0.0, 1.0)
+    atemp = st.slider("Feels-like Temperature", 0.0, 1.0)
+    hum = st.slider("Humidity", 0.0, 1.0)
+    wind = st.slider("Windspeed", 0.0, 1.0)
 
     if st.button("Predict Next 5 Hours"):
         results = []
         for i in range(5):
             h = (hour + i) % 24
             df = pd.DataFrame([{
-                "season": season,
-                "mnth": month,
-                "hr": h,
-                "holiday": holiday,
-                "weekday": weekday,
-                "workingday": workingday,
-                "weathersit": weather,
-                "temp": temp,
-                "atemp": atemp,
-                "hum": hum,
-                "windspeed": wind
+                "season": season, "mnth": month, "hr": h,
+                "holiday": holiday, "weekday": weekday,
+                "workingday": workingday, "weathersit": weather,
+                "temp": temp, "atemp": atemp,
+                "hum": hum, "windspeed": wind
             }])
-            pred = int(hour_model.predict(df)[0])
-            results.append({"Hour": f"{h}:00", "Count": pred})
+            results.append({"Hour": f"{h}:00", "Count": int(hour_model.predict(df)[0])})
 
-        st.session_state.hour_results = results
-
-    if st.session_state.hour_results:
-        dfh = pd.DataFrame(st.session_state.hour_results)
-
-        st.altair_chart(
-            (
-                alt.Chart(dfh)
-                .mark_bar(
-                    color="#1e40af",
-                    cornerRadiusTopLeft=6,
-                    cornerRadiusTopRight=6,
-                    tooltip=None
-                )
-                .encode(
-                    x="Hour:N",
-                    y=alt.Y("Count:Q", scale=alt.Scale(domain=[0, dfh["Count"].max()*1.25]))
-                )
-                +
-                alt.Chart(dfh)
-                .mark_text(
-                    dy=-8,
-                    color="#E4E6F0",
-                    fontSize=13,
-                    fontWeight="bold"
-                )
-                .encode(
-                    x="Hour:N",
-                    y="Count:Q",
-                    text="Count:Q"
-                )
-            )
-            .properties(height=380),
-            use_container_width=True
-        )
+        st.bar_chart(pd.DataFrame(results).set_index("Hour"))
